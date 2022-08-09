@@ -100,7 +100,7 @@ public final class TrainVariantAnnotationsModelIntegrationTest extends CommandLi
      *  2) SNP-only ("snp") vs. SNP+INDEL ("snpIndel") (for both of these options, we use extracted annotations that contain both SNP and INDEL variants as input)
      *  3) positive training with {extract-tag}.annot.hdf5 ("posOnly") vs. positive-negative training with {extract-tag}.annot.hdf5 and {extract-tag}.unlabeled.annot.hdf5 ("posNeg")
      *  4) model backend
-     *      4a) Java Bayesian Gaussian Mixture Model (BGMM) backend TODO the BGMM has been reduced to a stub for this initial PR; subsequent PRs will cover the backend code and reconnect the stub
+     *      4a) Java Bayesian Gaussian Mixture Model (BGMM) backend
      *      4b) default PYTHON_IFOREST with default hyperparameters ("IF")
      *      4c) default PYTHON_IFOREST with non-default seed hyperparameter ("IFDifferentSeed")
      *      4d) specified PYTHON_SCRIPT with non-default seed hyperparameter ("IFDifferentSeed"); we will simply use the same script as the default PYTHON_IFOREST backend, so this is just a test of the command-line interface
@@ -119,6 +119,7 @@ public final class TrainVariantAnnotationsModelIntegrationTest extends CommandLi
                         Pair.of("posOnly", Function.identity()),
                         Pair.of("posNeg", Function.identity())),
                 Arrays.asList(
+                        Pair.of("BGMM", ab -> ADD_MODEL_BACKEND.apply(ab, VariantAnnotationsModelBackend.JAVA_BGMM)),
                         Pair.of("IF", ab -> ADD_MODEL_BACKEND.apply(ab, VariantAnnotationsModelBackend.PYTHON_IFOREST)),
                         Pair.of("IFDifferentSeed", ADD_ISOLATION_FOREST_HYPERPARAMETERS_JSON
                                 .andThen(ab -> ADD_MODEL_BACKEND.apply(ab, VariantAnnotationsModelBackend.PYTHON_IFOREST))), // this and the following case give the same results, so they are given the same IFDifferentSeed tag

@@ -316,6 +316,8 @@ public final class TrainVariantAnnotationsModel extends CommandLineProgram {
     public static final String ISOLATION_FOREST_PYTHON_SCRIPT = "isolation-forest.py";
     public static final String ISOLATION_FOREST_HYPERPARAMETERS_JSON = "isolation-forest-hyperparameters.json";
 
+    public static final String BGMM_HYPERPARAMETERS_JSON = "bgmm-hyperparameters.json";
+
     enum AvailableLabelsMode {
         POSITIVE_ONLY, POSITIVE_UNLABELED
     }
@@ -334,7 +336,7 @@ public final class TrainVariantAnnotationsModel extends CommandLineProgram {
             fullName = UNLABELED_ANNOTATIONS_HDF5_LONG_NAME,
             doc = "HDF5 file containing annotations extracted with ExtractVariantAnnotations. " +
                     "If specified with " + CALIBRATION_SENSITIVITY_THRESHOLD_LONG_NAME + ", " +
-                    "a positive-unlabeled modeling approach will be used; otherwise, a positive-only modeling " +
+                    "a positive-negative modeling approach will be used; otherwise, a positive-only modeling " +
                     "approach will be used.",
             optional = true)
     private File inputUnlabeledAnnotationsFile;
@@ -342,10 +344,10 @@ public final class TrainVariantAnnotationsModel extends CommandLineProgram {
     @Argument(
             fullName = MODEL_BACKEND_LONG_NAME,
             doc = "Backend to use for training models. " +
-                    "JAVA_BGMM will use a pure Java implementation (ported from Python scikit-learn) of the Bayesian Gaussian Mixture Model. " +
                     "PYTHON_IFOREST will use the Python scikit-learn implementation of the IsolationForest method and " +
                     "will require that the corresponding Python dependencies are present in the environment. " +
                     "PYTHON_SCRIPT will use the script specified by the " + PYTHON_SCRIPT_LONG_NAME + " argument. " +
+                    "JAVA_BGMM will use a pure Java implementation (ported from Python scikit-learn) of the Bayesian Gaussian Mixture Model. " +
                     "See the tool documentation for more details.")
     private VariantAnnotationsModelBackend modelBackend = VariantAnnotationsModelBackend.PYTHON_IFOREST;
 
@@ -371,7 +373,7 @@ public final class TrainVariantAnnotationsModel extends CommandLineProgram {
     @Argument(
             fullName = CALIBRATION_SENSITIVITY_THRESHOLD_LONG_NAME,
             doc = "Calibration-sensitivity threshold that determines which sites will be used for training the negative model " +
-                    "in the positive-unlabeled modeling approach. " +
+                    "in the positive-negative modeling approach. " +
                     "Increasing this will decrease the corresponding positive-model score threshold; sites with scores below this score " +
                     "threshold will be used for training the negative model. Thus, this parameter should typically be chosen to " +
                     "be close to 1, so that sites that score highly according to the positive model will not be used to train the negative model. " +
@@ -430,8 +432,10 @@ public final class TrainVariantAnnotationsModel extends CommandLineProgram {
             case JAVA_BGMM:
                 Utils.validateArg(pythonScriptFile == null,
                         "Python script should not be provided when using JAVA_BGMM backend.");
+                if (hyperparametersJSONFile == null) {
+                    hyperparametersJSONFile = IOUtils.writeTempResource(new Resource(BGMM_HYPERPARAMETERS_JSON, TrainVariantAnnotationsModel.class));
+                }
                 IOUtils.canReadFile(hyperparametersJSONFile);
-                logger.info("Running in JAVA_BGMM mode...");
                 break;
             case PYTHON_IFOREST:
                 Utils.validateArg(pythonScriptFile == null,
@@ -447,16 +451,15 @@ public final class TrainVariantAnnotationsModel extends CommandLineProgram {
                 PythonScriptExecutor.checkPythonEnvironmentForPackage("numpy");
                 PythonScriptExecutor.checkPythonEnvironmentForPackage("sklearn");
                 PythonScriptExecutor.checkPythonEnvironmentForPackage("dill");
-                logger.info("Running in PYTHON_IFOREST mode...");
                 break;
             case PYTHON_SCRIPT:
                 IOUtils.canReadFile(pythonScriptFile);
                 IOUtils.canReadFile(hyperparametersJSONFile);
-                logger.info("Running in PYTHON_SCRIPT mode...");
                 break;
             default:
                 throw new GATKException.ShouldNeverReachHereException("Unknown model-backend mode.");
         }
+        logger.info(String.format("Running in %s mode...", modelBackend));
     }
 
     /**
@@ -485,11 +488,6 @@ public final class TrainVariantAnnotationsModel extends CommandLineProgram {
             final File labeledTrainingAndVariantTypeAnnotationsFile = LabeledVariantAnnotationsData.subsetAnnotationsToTemporaryFile(annotationNames, annotations, isTrainingAndVariantType);
             trainAndSerializeModel(labeledTrainingAndVariantTypeAnnotationsFile, outputPrefixTag);
             logger.info(String.format("%s model trained and serialized with output prefix \"%s\".", variantTypeString, outputPrefix + outputPrefixTag));
-
-            if (modelBackend == VariantAnnotationsModelBackend.JAVA_BGMM) {
-                BGMMVariantAnnotationsScorer.preprocessAnnotationsWithBGMMAndWriteHDF5(
-                        annotationNames, outputPrefix + outputPrefixTag, labeledTrainingAndVariantTypeAnnotationsFile, logger);
-            }
 
             logger.info(String.format("Scoring %d %s training sites...", numTrainingAndVariantType, variantTypeString));
             final File labeledTrainingAndVariantTypeScoresFile = score(labeledTrainingAndVariantTypeAnnotationsFile, outputPrefixTag, TRAINING_SCORES_HDF5_SUFFIX);
@@ -683,21 +681,34 @@ public final class TrainVariantAnnotationsModel extends CommandLineProgram {
         return outputScoresFile;
     }
 
+    /**
+     * This should be robust to cases in which there are no sites with scores below the negative-training threshold
+     * in either the labeled or unlabeled annotations.
+     */
     private static double[][] concatenateLabeledAndUnlabeledNegativeTrainingData(final List<String> annotationNames,
                                                                                  final double[][] annotations,
                                                                                  final double[][] unlabeledAnnotations,
                                                                                  final List<Boolean> isNegativeTrainingFromLabeledTrainingAndVariantType,
                                                                                  final List<Boolean> isNegativeTrainingFromUnlabeledVariantType) {
-        final File negativeTrainingFromLabeledTrainingAndVariantTypeAnnotationsFile =
-                LabeledVariantAnnotationsData.subsetAnnotationsToTemporaryFile(annotationNames, annotations, isNegativeTrainingFromLabeledTrainingAndVariantType);
-        final double[][] negativeTrainingFromLabeledTrainingAndVariantTypeAnnotations = LabeledVariantAnnotationsData.readAnnotations(negativeTrainingFromLabeledTrainingAndVariantTypeAnnotationsFile);
-
-        final File negativeTrainingFromUnlabeledVariantTypeAnnotationsFile =
-                LabeledVariantAnnotationsData.subsetAnnotationsToTemporaryFile(annotationNames, unlabeledAnnotations, isNegativeTrainingFromUnlabeledVariantType);
-        final double[][] negativeTrainingFromUnlabeledVariantTypeAnnotations = LabeledVariantAnnotationsData.readAnnotations(negativeTrainingFromUnlabeledVariantTypeAnnotationsFile);
-
+        final int numNegativeTrainingFromLabeledTrainingAndVariantType = numPassingFilter(isNegativeTrainingFromLabeledTrainingAndVariantType);
+        final int numNegativeTrainingFromUnlabeledVariantType = numPassingFilter(isNegativeTrainingFromUnlabeledVariantType);
+        Utils.validateArg(numNegativeTrainingFromLabeledTrainingAndVariantType + numNegativeTrainingFromUnlabeledVariantType > 0,
+                String.format("No sites below the specified score threshold were available for negative-model training. " +
+                        "Consider using a positive-only modeling approach or adjusting the value of the %s argument.", CALIBRATION_SENSITIVITY_THRESHOLD_LONG_NAME));
+        final double[][] negativeTrainingFromLabeledTrainingAndVariantTypeAnnotations = subsetAnnotationsViaTemporaryFile(annotationNames, annotations, isNegativeTrainingFromLabeledTrainingAndVariantType);
+        final double[][] negativeTrainingFromUnlabeledVariantTypeAnnotations = subsetAnnotationsViaTemporaryFile(annotationNames, unlabeledAnnotations, isNegativeTrainingFromUnlabeledVariantType);
         return Streams.concat(
                 Arrays.stream(negativeTrainingFromLabeledTrainingAndVariantTypeAnnotations),
                 Arrays.stream(negativeTrainingFromUnlabeledVariantTypeAnnotations)).toArray(double[][]::new);
+    }
+
+    private static double[][] subsetAnnotationsViaTemporaryFile(final List<String> annotationNames,
+                                                                final double[][] annotations,
+                                                                final List<Boolean> isSubset) {
+        if (isSubset.stream().noneMatch(x -> x)) {
+            return new double[0][annotationNames.size()];
+        }
+        final File subsetAnnotationsFile = LabeledVariantAnnotationsData.subsetAnnotationsToTemporaryFile(annotationNames, annotations, isSubset);
+        return LabeledVariantAnnotationsData.readAnnotations(subsetAnnotationsFile);
     }
 }
