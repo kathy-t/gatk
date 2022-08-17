@@ -725,10 +725,6 @@ public final class TrainVariantAnnotationsModel extends CommandLineProgram {
 
     private static double[][] subsetAnnotations(final double[][] annotations,
                                                 final List<Boolean> isSubset) {
-        final int nFeatures = annotations[0].length; // annotations is guaranteed to have at least one element
-        if (isSubset.stream().noneMatch(x -> x)) {
-            return new double[0][nFeatures];
-        }
         return IntStream.range(0, isSubset.size()).boxed().filter(isSubset::get).map(i -> annotations[i]).toArray(double[][]::new);
     }
 }
