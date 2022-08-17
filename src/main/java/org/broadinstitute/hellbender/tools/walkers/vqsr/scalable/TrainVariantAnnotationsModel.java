@@ -563,7 +563,7 @@ public final class TrainVariantAnnotationsModel extends CommandLineProgram {
                             numNegativeTrainingFromUnlabeledVariantType, variantTypeString, scoreThreshold));
 
                     final double[][] negativeTrainingAndVariantTypeAnnotations = concatenateLabeledAndUnlabeledNegativeTrainingData(
-                            annotationNames, annotations, unlabeledAnnotations, isNegativeTrainingFromLabeledTrainingAndVariantType, isNegativeTrainingFromUnlabeledVariantType);
+                            annotations, unlabeledAnnotations, isNegativeTrainingFromLabeledTrainingAndVariantType, isNegativeTrainingFromUnlabeledVariantType);
                     final int numNegativeTrainingAndVariantType = negativeTrainingAndVariantTypeAnnotations.length;
                     final List<Boolean> isNegativeTrainingAndVariantType = Collections.nCopies(numNegativeTrainingAndVariantType, true);
 
@@ -707,8 +707,7 @@ public final class TrainVariantAnnotationsModel extends CommandLineProgram {
      * This should be robust to cases in which there are no sites with scores below the negative-training threshold
      * in either the labeled or unlabeled annotations.
      */
-    private static double[][] concatenateLabeledAndUnlabeledNegativeTrainingData(final List<String> annotationNames,
-                                                                                 final double[][] annotations,
+    private static double[][] concatenateLabeledAndUnlabeledNegativeTrainingData(final double[][] annotations,
                                                                                  final double[][] unlabeledAnnotations,
                                                                                  final List<Boolean> isNegativeTrainingFromLabeledTrainingAndVariantType,
                                                                                  final List<Boolean> isNegativeTrainingFromUnlabeledVariantType) {
@@ -717,20 +716,19 @@ public final class TrainVariantAnnotationsModel extends CommandLineProgram {
         Utils.validateArg(numNegativeTrainingFromLabeledTrainingAndVariantType + numNegativeTrainingFromUnlabeledVariantType > 0,
                 String.format("No sites below the specified score threshold were available for negative-model training. " +
                         "Consider using a positive-only modeling approach or adjusting the value of the %s argument.", CALIBRATION_SENSITIVITY_THRESHOLD_LONG_NAME));
-        final double[][] negativeTrainingFromLabeledTrainingAndVariantTypeAnnotations = subsetAnnotationsViaTemporaryFile(annotationNames, annotations, isNegativeTrainingFromLabeledTrainingAndVariantType);
-        final double[][] negativeTrainingFromUnlabeledVariantTypeAnnotations = subsetAnnotationsViaTemporaryFile(annotationNames, unlabeledAnnotations, isNegativeTrainingFromUnlabeledVariantType);
+        final double[][] negativeTrainingFromLabeledTrainingAndVariantTypeAnnotations = subsetAnnotations(annotations, isNegativeTrainingFromLabeledTrainingAndVariantType);
+        final double[][] negativeTrainingFromUnlabeledVariantTypeAnnotations = subsetAnnotations(unlabeledAnnotations, isNegativeTrainingFromUnlabeledVariantType);
         return Streams.concat(
                 Arrays.stream(negativeTrainingFromLabeledTrainingAndVariantTypeAnnotations),
                 Arrays.stream(negativeTrainingFromUnlabeledVariantTypeAnnotations)).toArray(double[][]::new);
     }
 
-    private static double[][] subsetAnnotationsViaTemporaryFile(final List<String> annotationNames,
-                                                                final double[][] annotations,
-                                                                final List<Boolean> isSubset) {
+    private static double[][] subsetAnnotations(final double[][] annotations,
+                                                final List<Boolean> isSubset) {
+        final int nFeatures = annotations[0].length; // annotations is guaranteed to have at least one element
         if (isSubset.stream().noneMatch(x -> x)) {
-            return new double[0][annotationNames.size()];
+            return new double[0][nFeatures];
         }
-        final File subsetAnnotationsFile = LabeledVariantAnnotationsData.subsetAnnotationsToTemporaryFile(annotationNames, annotations, isSubset);
-        return LabeledVariantAnnotationsData.readAnnotations(subsetAnnotationsFile);
+        return IntStream.range(0, isSubset.size()).boxed().filter(isSubset::get).map(i -> annotations[i]).toArray(double[][]::new);
     }
 }
