@@ -162,7 +162,9 @@ import java.util.stream.IntStream;
  *     It is implemented by the Java classes {@link BGMMVariantAnnotationsModel} and {@link BayesianGaussianMixtureModeller}.
  *     Hyperparameters can be specified using the {@value HYPERPARAMETERS_JSON_LONG_NAME} argument; see
  *     src/main/resources/org/broadinstitute/hellbender/tools/walkers/vqsr/scalable/bgmm-hyperparameters.json
- *     for an example and the default values.
+ *     for an example and the default values. The API for these hyperparameters is very similar to that of the
+ *     scikit-learn module; see documentation in the aforementioned classes and default JSON file to understand the
+ *     differences.
  * </p>
  *
  * <h3>Calibration sets</h3>
@@ -247,6 +249,9 @@ import java.util.stream.IntStream;
  *     <li>
  *         (Optional) Negative-model serialized scorer file. (.negative.scorer.pkl for the default {@code PYTHON_IFOREST} model backend).
  *         This is only output if a positive-negative modeling approach is used.
+ *     </li>
+ *     <li>
+ *         (Optional) TODO BGMM positive/negative fits
  *     </li>
  * </ul>
  *
