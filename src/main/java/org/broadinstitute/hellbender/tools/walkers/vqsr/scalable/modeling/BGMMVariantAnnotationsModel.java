@@ -208,6 +208,7 @@ public final class BGMMVariantAnnotationsModel implements VariantAnnotationsMode
                     ", seed=" + seed +
                     ", warmStart=" + warmStart +
                     ", verboseInterval=" + verboseInterval +
+                    ", warmStartSubsample=" + warmStartSubsample +
                     '}';
         }
     }
