@@ -6,7 +6,7 @@ import org.broadinstitute.barclay.argparser.CommandLineProgramProperties;
 import org.broadinstitute.hellbender.cmdline.StandardArgumentDefinitions;
 import org.broadinstitute.hellbender.cmdline.programgroups.ExampleProgramGroup;
 import org.broadinstitute.hellbender.engine.FeatureInput;
-import org.broadinstitute.hellbender.engine.MultiFeatureWalker;
+import org.broadinstitute.hellbender.engine.MergingMultiFeatureWalker;
 import org.broadinstitute.hellbender.engine.ReadsContext;
 import org.broadinstitute.hellbender.engine.ReferenceContext;
 
@@ -28,7 +28,7 @@ import java.util.List;
         oneLineSummary = "Example of a MultiFeatureWalker subclass.",
         programGroup = ExampleProgramGroup.class
 )
-public class ExampleMultiFeatureWalker extends MultiFeatureWalker<Feature> {
+public class ExampleMergingMultiFeatureWalker extends MergingMultiFeatureWalker<Feature> {
     @Argument( fullName = StandardArgumentDefinitions.FEATURE_LONG_NAME,
             shortName = StandardArgumentDefinitions.FEATURE_SHORT_NAME )
     private List<FeatureInput<Feature>> featureInputs;

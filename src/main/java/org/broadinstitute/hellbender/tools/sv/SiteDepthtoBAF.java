@@ -70,7 +70,7 @@ import java.util.List;
 )
 @ExperimentalFeature
 @DocumentedFeature
-public class SiteDepthtoBAF extends MultiFeatureWalker<SiteDepth> {
+public class SiteDepthtoBAF extends MergingMultiFeatureWalker<SiteDepth> {
     public static final String LOCUS_DEPTH_FILE_NAME = "site-depth";
     public static final String BAF_SITES_VCF_LONG_NAME = "baf-sites-vcf";
     public static final String SAMPLE_NAMES_NAME = "sample-names";
